@@ -5,7 +5,7 @@
 
 """
 
-from PyQt6 import uic, QtWidgets
+from PyQt6 import uic, QtWidgets, QtGui
 from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import QApplication
@@ -29,6 +29,13 @@ class MainWindow(QtWidgets.QMainWindow):
         qt_creator_file = "src/ui/Overview.ui"
         self.ui = uic.loadUi(qt_creator_file, self)
 
+        # Set window position
+        frame_geometry = self.frameGeometry()
+        screen = QtGui.QGuiApplication.primaryScreen().availableGeometry().center()
+        frame_geometry.moveCenter(screen)
+        self.move(frame_geometry.topLeft())
+
+        # Set window title
         self.setWindowTitle("Overview")
 
         # Load Ui stylesheet
@@ -47,8 +54,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ui = self.ui
 
         # Set size properties for the window
-        ui.setMaximumWidth(773)
-        ui.setMinimumHeight(434)
+        ui.setFixedSize(773, 434)
 
         ui.notebookManagerTitleLabel.setText("My notebooks")
         ui.notebookManagerTitleLabel.adjustSize()
