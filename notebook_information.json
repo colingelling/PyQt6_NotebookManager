@@ -1,0 +1,14 @@
+{
+    "Notebooks": {
+        "First notebook": {
+            "First note": {
+                "note_text": "text"
+            }
+        },
+        "Second notebook": {
+            "Second note": {
+                "note_text": "text"
+            }
+        }
+    }
+}
