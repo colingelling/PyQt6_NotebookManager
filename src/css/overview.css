@@ -35,6 +35,17 @@ QTextEdit {
     color: #333;
 }
 
+QMenu {
+    background: #e5e5e5;
+    color: #333;
+    border-radius: 6px;
+    padding: 4px 3px 6px 2px;
+}
+
+QMenu::item:selected {
+    background: #fff;
+}
+
 #contentHeaderWidgetLabel {
     color: #333;
 }

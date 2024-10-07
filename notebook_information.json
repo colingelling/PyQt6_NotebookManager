@@ -3,6 +3,9 @@
         "First notebook": {
             "First note": {
                 "note_text": "text"
+            },
+            "Third note": {
+                "note_text": "text"
             }
         },
         "Second notebook": {
