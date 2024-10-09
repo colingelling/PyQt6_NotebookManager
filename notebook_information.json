@@ -12,6 +12,9 @@
             "Second note": {
                 "note_text": "text"
             }
-        }
+        },
+        "Third notebook": {},
+        "Test notebook": {},
+        "Test notebook 2": {}
     }
 }

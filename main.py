@@ -86,18 +86,20 @@ class DataModel:
 
 class Events(QObject):
     data_signal = pyqtSignal()
-    notebook_edit_signal = pyqtSignal(dict)
-    top_level_item_clicked = pyqtSignal(str)  # Signal to send item text
+    notebook_edit_signal = pyqtSignal(dict, str)
 
+    notebook_form_state = None
+    note_form_state = None
 
 class Widgets:
     tree_widget = None
 
-    def __init__(self):
+    def __init__(self, events_model):
         super(Widgets, self).__init__()
+        self.events_model = events_model
         self.item_data_map = {}
 
-    def setup_tree_widget(self, parent_window, model, widget):
+    def setup_tree_widget(self, widget):
 
         Widgets.tree_widget = widget
 
@@ -133,8 +135,7 @@ class Widgets:
         widget.clear()  # Remove all items from the widget
         self.add_tree_items(widget)  # Rebuild widget items
 
-    @staticmethod
-    def context_menu(position):
+    def context_menu(self, position):
         # Receive the item's clicked position
         selected_item = Widgets.tree_widget.itemAt(position)
 
@@ -142,39 +143,40 @@ class Widgets:
             # Create a context menu
             menu = QMenu()
 
-            # Adding options
-            edit_action = menu.addAction('Edit')
-            delete_action = menu.addAction('Delete')
+            edit_action_text = "Edit"
+            delete_action_text = "Delete"
 
-            selected_action = Widgets.tree_widget.viewport().mapToGlobal(position)
+            # Adding options
+            edit_action = menu.addAction(edit_action_text)
+            delete_action = menu.addAction(delete_action_text)
 
             # Connecting the options to functions
-            edit_action.triggered.connect(lambda: Widgets.activate_trigger(selected_item, selected_action))
-            delete_action.triggered.connect(lambda: Widgets.activate_trigger(selected_item, selected_action))
+            edit_action.triggered.connect(lambda: self.activate_trigger(selected_item, edit_action_text))
+            delete_action.triggered.connect(lambda: self.activate_trigger(selected_item, delete_action_text))
 
             # Display the context menu at the mouse position and get the selected action
             menu.exec(Widgets.tree_widget.viewport().mapToGlobal(position))
 
-    @staticmethod
-    def activate_trigger(item, action):
-        filtered_data = DataModel.prepare_context_data(item)
+    def activate_trigger(self, item, action):
+        item_data = DataModel.prepare_context_data(item)
 
         # emit signal that the item has been clicked
         item_text = item.text(0)
-        filtered_data["pressed_item"] = item_text
-        print("Action ", action, "on", item_text, "has been pressed. ", "The following data set was prepared: ", filtered_data)
+        item_data["pressed_item"] = item_text
+        print("Action", action, "on", item_text, "has been pressed. ", "The following data set was prepared: ", item_data)
+        self.events_model.notebook_edit_signal.emit(item_data, action)
 
 
-class MainWindow(QtWidgets.QMainWindow, Widgets, DataModel):
+class MainWindow(QtWidgets.QMainWindow):
     context_menu_func = None
 
-    def __init__(self, parent=None):
-        super(MainWindow, self).__init__(parent)
+    def __init__(self):
+        super(MainWindow, self).__init__()
 
         # One time model declaration, need the same signals for passing through functions
         self.data_model = DataModel()
-        self.widgets_model = Widgets()
         self.events_model = Events()
+        self.widgets_model = Widgets(self.events_model)
 
         # Load QtDesigner Ui file
         qt_creator_file = "src/ui/Overview.ui"
@@ -213,16 +215,36 @@ class MainWindow(QtWidgets.QMainWindow, Widgets, DataModel):
         parent_tree_widget = ui.QtreeWidget
 
         # TreeWidget setup
-        self.widgets_model.setup_tree_widget(self, self.events_model, parent_tree_widget)
+        self.widgets_model.setup_tree_widget(parent_tree_widget)
 
         # Set a connection from the view passed signal and connect it with functionality in order to rebuild QTreeWidget items
         self.events_model.data_signal.connect(lambda: self.widgets_model.refresh_tree_widget(parent_tree_widget))
 
-        button_text = "Save"
-        ui.notebookActionButton.setText(button_text)
-        ui.noteActionButton.setText(button_text)
+        notebook_save_button = ui.notebookActionButton
+        note_save_button =  ui.noteActionButton
 
-        ui.notebookActionButton.setCursor(Qt.CursorShape.PointingHandCursor)
+        save_button_text = "Save"
+        notebook_save_button.setText(save_button_text)
+        note_save_button.setText(save_button_text)
+
+        notebook_save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        note_save_button.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        def prepare_create_notebook(notebook_name):
+            DataModel.create_notebook(notebook_name)
+            self.events_model.data_signal.emit()
+
+        if not self.events_model.notebook_form_state:
+            self.events_model.notebook_form_state = "notebook creation mode"
+            notebook_save_button.clicked.connect(lambda: prepare_create_notebook(ui.notebookAction_lineEdit.text()))
+
+        def handle_signal(data, action):
+            self.events_model.notebook_form_state = "notebook editing mode"
+            print(f"Triggered '{action}' on pressed_item '{data}' in state '{self.events_model.notebook_form_state}'")
+            self.events_model.notebook_form_state = "notebook creation mode"
+            print(f"Returned back to '{self.events_model.notebook_form_state}'")
+
+        self.events_model.notebook_edit_signal.connect(handle_signal)
 
 
 if __name__ == "__main__":
