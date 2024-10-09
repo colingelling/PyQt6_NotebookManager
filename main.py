@@ -234,9 +234,9 @@ class MainWindow(QtWidgets.QMainWindow):
             DataModel.create_notebook(notebook_name)
             self.events_model.data_signal.emit()
 
+        # Set default state at the beginning
         if not self.events_model.notebook_form_state:
             self.events_model.notebook_form_state = "notebook creation mode"
-            notebook_save_button.clicked.connect(lambda: prepare_create_notebook(ui.notebookAction_lineEdit.text()))
 
         def handle_signal(data, action):
             self.events_model.notebook_form_state = "notebook editing mode"
@@ -245,6 +245,8 @@ class MainWindow(QtWidgets.QMainWindow):
             print(f"Returned back to '{self.events_model.notebook_form_state}'")
 
         self.events_model.notebook_edit_signal.connect(handle_signal)
+
+        # ui.notebookActionButton.clicked.connect(lambda: handle_state(ui.))
 
 
 if __name__ == "__main__":
