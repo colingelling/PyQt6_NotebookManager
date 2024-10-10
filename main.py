@@ -4,6 +4,7 @@
     Using Pycharm Professional
 
 """
+
 import json
 import os
 from signal import signal
@@ -101,8 +102,8 @@ class DataModel:
 
 
 class Events(QObject):
-    data_signal = pyqtSignal()
     notebook_edit_signal = pyqtSignal(dict, str)
+    data_signal = pyqtSignal()
 
     notebook_form_state = None
     note_form_state = None
@@ -117,13 +118,10 @@ class Widgets:
 
     def setup_tree_widget(self, widget):
 
-        Widgets.tree_widget = widget
+        Widgets.tree_widget = widget  # Assign as class property
+        widget.setHeaderHidden(True)  # QTreeWidget customisation; hiding headers
 
-        # QTreeWidget customisation
-        widget.setHeaderHidden(True)
-
-        # Execute functionality
-        self.add_tree_items(widget)
+        self.add_tree_items(widget)  # Execute functionality for adding both notebooks and notes
 
         # Extending to context menu display
         widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -156,8 +154,7 @@ class Widgets:
         selected_item = Widgets.tree_widget.itemAt(position)
 
         if selected_item:
-            # Create a context menu
-            menu = QMenu()
+            menu = QMenu()  # Create context menu instance
 
             edit_action_text = "Edit"
             delete_action_text = "Delete"
@@ -179,7 +176,6 @@ class Widgets:
         # emit signal that the item has been clicked
         item_text = item.text(0)
         item_data["pressed_item"] = item_text
-        print("Action", action, "on", item_text, "has been pressed. ", "The following data set was prepared: ", item_data)
         self.events_model.notebook_edit_signal.emit(item_data, action)
 
 
@@ -236,6 +232,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # Set a connection from the view passed signal and connect it with functionality in order to rebuild QTreeWidget items
         self.events_model.data_signal.connect(lambda: self.widgets_model.refresh_tree_widget(parent_tree_widget))
 
+        ui.notebookActionLabel.setText("The name of your notebook")
+        ui.noteActionLabel.setText("The name of your note")
+        ui.noteActionSelectorLabel.setText("Parent notebook for this note")
+        ui.noteActionDescriptionLabel.setText("Note text")
+
         notebook_save_button = ui.notebookActionButton
         note_save_button =  ui.noteActionButton
 
@@ -248,7 +249,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Set default state at the beginning
         if not self.events_model.notebook_form_state:
-            self.events_model.notebook_form_state = "notebook creation mode"  # Set mode for the first time
+            self.events_model.notebook_form_state = "notebook creation mode"  # Set (default) mode for the first time
 
         notebook_data = {}
 
@@ -262,17 +263,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self.events_model.notebook_edit_signal.connect(handle_signal)
 
         def state_verification(state):
-            input_text = ui.notebookAction_lineEdit.text()  # Assign value on time of button click
+            input_field = ui.notebookAction_lineEdit
+            input_text = input_field.text()  # Assign value on time of button click
 
-            if input_text:
-                if "notebook creation mode" in state:
-                    self.data_model.create_notebook(input_text)  # Handle request to JSON file
-                    self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
-                if "notebook editing mode" in state:
-                    input_text = ui.notebookAction_lineEdit.text()  # Assign value on time of button click
-                    notebook_data['probably_changed_notebook'] = input_text  # Add the probably changed information from the field
-                    self.data_model.update_notebook(notebook_data)  # Handle request to JSON file
-                    self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
+            if not input_text:
+                # TODO: rEtUrN qMeSsAgEbOx
+                pass
+
+            if "notebook creation mode" in state:
+                self.data_model.create_notebook(input_text)  # Handle request to JSON file
+            elif "notebook editing mode" in state:
+                notebook_data['probably_changed_notebook'] = input_text  # Add the probably changed information from the field
+                self.data_model.update_notebook(notebook_data)  # Handle request to JSON file
+
+            input_field.clear()
+            self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
+            self.events_model.notebook_form_state = "notebook creation mode"  # Go back to default
 
         ui.notebookActionButton.clicked.connect(lambda: state_verification(self.events_model.notebook_form_state))
 
