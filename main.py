@@ -51,6 +51,22 @@ class DataModel:
         # Save the updated JSON data
         DataModel._dump(json_data)
 
+    def update_notebook(self, data):
+        not_changed_item = data.get('not_changed_notebook')
+        probably_changed_item = data.get('probably_changed_notebook')
+
+        if not_changed_item != probably_changed_item:
+
+            json_data = self.load_data()  # Load existing JSON data
+            json_data['Notebooks'][probably_changed_item] = json_data['Notebooks'].pop(not_changed_item)  # Replace
+
+            # Save the updated JSON data
+            self._dump(json_data)
+
+        else:
+            # TODO: Return signal, referring to QmessageBox()
+            pass
+
     def update_note(self, old_data, new_data):
         # Extract old values
         old_note_value = old_data.get('note_name')
@@ -230,23 +246,35 @@ class MainWindow(QtWidgets.QMainWindow):
         notebook_save_button.setCursor(Qt.CursorShape.PointingHandCursor)
         note_save_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        def prepare_create_notebook(notebook_name):
-            DataModel.create_notebook(notebook_name)
-            self.events_model.data_signal.emit()
-
         # Set default state at the beginning
         if not self.events_model.notebook_form_state:
-            self.events_model.notebook_form_state = "notebook creation mode"
+            self.events_model.notebook_form_state = "notebook creation mode"  # Set mode for the first time
+
+        notebook_data = {}
 
         def handle_signal(data, action):
-            self.events_model.notebook_form_state = "notebook editing mode"
-            print(f"Triggered '{action}' on pressed_item '{data}' in state '{self.events_model.notebook_form_state}'")
-            self.events_model.notebook_form_state = "notebook creation mode"
-            print(f"Returned back to '{self.events_model.notebook_form_state}'")
+            self.events_model.notebook_form_state = "notebook editing mode"  # Change mode
+
+            notebook_name = data.get('pressed_item')  # Assign value
+            ui.notebookAction_lineEdit.setText(notebook_name)  # Set input field text
+            notebook_data['not_changed_notebook'] = notebook_name  # Add notebook_name to notebook_data for remembering
 
         self.events_model.notebook_edit_signal.connect(handle_signal)
 
-        # ui.notebookActionButton.clicked.connect(lambda: handle_state(ui.))
+        def state_verification(state):
+            input_text = ui.notebookAction_lineEdit.text()  # Assign value on time of button click
+
+            if input_text:
+                if "notebook creation mode" in state:
+                    self.data_model.create_notebook(input_text)  # Handle request to JSON file
+                    self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
+                if "notebook editing mode" in state:
+                    input_text = ui.notebookAction_lineEdit.text()  # Assign value on time of button click
+                    notebook_data['probably_changed_notebook'] = input_text  # Add the probably changed information from the field
+                    self.data_model.update_notebook(notebook_data)  # Handle request to JSON file
+                    self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
+
+        ui.notebookActionButton.clicked.connect(lambda: state_verification(self.events_model.notebook_form_state))
 
 
 if __name__ == "__main__":
