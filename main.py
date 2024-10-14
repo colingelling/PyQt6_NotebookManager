@@ -50,6 +50,13 @@ class DataModel:
         # Save the updated JSON data
         DataModel._dump(json_data)
 
+    def create_note(self, note_name, notebook_name, note_text):
+        json_data = DataModel.load_data()
+        json_data["Notebooks"][notebook_name].update({note_name: {'text': note_text}})
+
+        # Save the updated JSON data
+        DataModel._dump(json_data)
+
     def update_notebook(self, data):
         not_changed_item = data.get('not_changed_notebook')
         probably_changed_item = data.get('probably_changed_notebook')
@@ -245,6 +252,14 @@ class MainWindow(QtWidgets.QMainWindow):
         ui.noteActionSelectorLabel.setText("Parent notebook for this note")
         ui.noteActionDescriptionLabel.setText("Note text")
 
+        ui.noteAction_comboBox.addItems(self.data_model.load_data()["Notebooks"])
+
+        def handle_notebook_selector():
+            ui.noteAction_comboBox.clear()
+            ui.noteAction_comboBox.addItems(self.data_model.load_data()["Notebooks"])
+
+        self.events_model.data_signal.connect(handle_notebook_selector)
+
         notebook_save_button = ui.notebookActionButton
         note_save_button =  ui.noteActionButton
 
@@ -255,9 +270,9 @@ class MainWindow(QtWidgets.QMainWindow):
         notebook_save_button.setCursor(Qt.CursorShape.PointingHandCursor)
         note_save_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        # Set default state at the beginning
-        if not self.events_model.notebook_form_state:
-            self.events_model.notebook_form_state = "notebook creation mode"  # Set (default) mode for the first time
+        # Set default state for both at the beginning
+        self.events_model.notebook_form_state = "notebook creation mode"
+        self.events_model.note_form_state = "note creation mode"
 
         notebook_data = {}
 
@@ -271,23 +286,41 @@ class MainWindow(QtWidgets.QMainWindow):
         self.events_model.notebook_edit_signal.connect(handle_signal)
 
         def state_verification(state):
-            input_field = ui.notebookAction_lineEdit
-            input_text = input_field.text()  # Assign value on time of button click
+            notebook_input_field = ui.notebookAction_lineEdit
 
-            if not input_text:  # Do not pass if there's no input_text value
-                return None
+            note_input_field = ui.noteAction_lineEdit
+            notebook_selector_field = ui.noteAction_comboBox
+            note_text_field = ui.noteAction_textEdit
 
-            if "notebook creation mode" in state:
-                self.data_model.create_notebook(input_text)  # Handle request to JSON file
-            elif "notebook editing mode" in state:
-                notebook_data['probably_changed_notebook'] = input_text  # Add the probably changed information from the field
+            notebook_input_text = notebook_input_field.text()
+
+            note_input_text = note_input_field.text()
+            notebook_selector_text = notebook_selector_field.currentText()
+            note_input_description = note_text_field.toPlainText()
+
+            if 'notebook creation mode' in state and notebook_input_text:
+                self.data_model.create_notebook(notebook_input_text)  # Handle request to JSON file
+            elif 'notebook editing mode' in state and notebook_input_text:
+                notebook_data['probably_changed_notebook'] = notebook_input_text  # Add the probably changed information from the field
                 self.data_model.update_notebook(notebook_data)  # Handle request to JSON file
+            elif 'note creation mode' in state and note_input_text:
+                self.data_model.create_note(note_input_text, notebook_selector_text, note_input_description)
+            elif 'note editing mode' in state and note_input_text:
+                # TODO: Pass input field information to notebook_data, before continuing to self.data_model.update_note
+                pass
 
-            input_field.clear()
+            # Clear input fields after task has been completed
+            if notebook_input_text: notebook_input_field.clear()
+            if note_input_text: note_input_field.clear()
+            if note_input_description: note_text_field.clear()
+
             self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
+
             self.events_model.notebook_form_state = "notebook creation mode"  # Go back to default
+            self.events_model.note_form_state = "note creation mode"  # Go back to default
 
         ui.notebookActionButton.clicked.connect(lambda: state_verification(self.events_model.notebook_form_state))
+        ui.noteActionButton.clicked.connect(lambda: state_verification(self.events_model.note_form_state))
 
 
 if __name__ == "__main__":
