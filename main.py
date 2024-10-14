@@ -7,16 +7,14 @@
 
 import json
 import os
-from signal import signal
 
 from PyQt6 import uic, QtWidgets, QtGui
-from PyQt6.QtCore import QObject, Qt, pyqtSignal, QTimer
-from PyQt6.QtGui import QFontDatabase, QCursor, QAction
-from PyQt6.QtWidgets import QApplication, QTreeWidgetItem, QTreeWidget, QMenu
+from PyQt6.QtCore import QObject, Qt, pyqtSignal
+from PyQt6.QtGui import QFontDatabase
+from PyQt6.QtWidgets import QApplication, QTreeWidgetItem, QMenu
 
 
 class DataModel:
-    # Declaration of path values for storing application output
     source = os.path.dirname(os.path.realpath(__file__))
     json_file = f"{source}/notebook_information.json"
 
@@ -65,8 +63,7 @@ class DataModel:
             self._dump(json_data)
 
         else:
-            # TODO: Return signal, referring to QmessageBox()
-            pass
+            return None  # Do nothing if nothing has been changed
 
     def update_note(self, old_data, new_data):
         # Extract old values
@@ -96,6 +93,12 @@ class DataModel:
         self._dump(json_data)
 
     @staticmethod
+    def delete_notebook(notebook_name):
+        json_data = DataModel.load_data()
+        del json_data["Notebooks"][notebook_name]
+        DataModel._dump(json_data)
+
+    @staticmethod
     def _dump(data):
         with open(DataModel.json_file, 'w') as file:
             return json.dump(data, file, indent=4)
@@ -117,7 +120,6 @@ class Widgets:
         self.item_data_map = {}
 
     def setup_tree_widget(self, widget):
-
         Widgets.tree_widget = widget  # Assign as class property
         widget.setHeaderHidden(True)  # QTreeWidget customisation; hiding headers
 
@@ -176,7 +178,13 @@ class Widgets:
         # emit signal that the item has been clicked
         item_text = item.text(0)
         item_data["pressed_item"] = item_text
-        self.events_model.notebook_edit_signal.emit(item_data, action)
+
+        # Emit signals for each action and process the information
+        if action == "Edit":
+            self.events_model.notebook_edit_signal.emit(item_data, action)
+        elif action == "Delete":
+            DataModel.delete_notebook(item_text)
+            self.events_model.data_signal.emit()
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -266,9 +274,8 @@ class MainWindow(QtWidgets.QMainWindow):
             input_field = ui.notebookAction_lineEdit
             input_text = input_field.text()  # Assign value on time of button click
 
-            if not input_text:
-                # TODO: rEtUrN qMeSsAgEbOx
-                pass
+            if not input_text:  # Do not pass if there's no input_text value
+                return None
 
             if "notebook creation mode" in state:
                 self.data_model.create_notebook(input_text)  # Handle request to JSON file
