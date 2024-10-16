@@ -26,7 +26,7 @@ class DataModel:
     def prepare_context_data(item):
         parent_item = item.parent()
 
-        if parent_item: return {'parent_notebook': parent_item.text(0), 'child_note': item.text(0)}
+        if parent_item: return {'notebook': parent_item.text(0), 'child_note': item.text(0)}
         else: return {'notebook': item.text(0)}
 
     def _write_file_template(self):
@@ -72,29 +72,34 @@ class DataModel:
         else:
             return None  # Do nothing if nothing has been changed
 
-    def update_note(self, old_data, new_data):
-        # Extract old values
-        old_note_value = old_data.get('note_name')
-        old_notebook_value = old_data.get('notebook')
-        old_text_value = old_data.get('note_text')
+    def update_note(self, form_data):
+        # Assign note values from before the button click
+        first_note_value = form_data['viewed_data'].get('note_name')
+        first_notebook_value = form_data['viewed_data'].get('parent_notebook')
+        first_text_value = form_data['viewed_data'].get('note_text')
 
-        # Extract new values
-        new_note_value = new_data.get('note_name')
-        new_notebook_value = new_data.get('notebook')
-        new_text_value = new_data.get('note_text')
+        # Assign note values from after the button click
+        second_note_value = form_data['probably_changed_data'].get('note_name')
+        second_notebook_value = form_data['probably_changed_data'].get('parent_notebook')
+        second_text_value = form_data['probably_changed_data'].get('note_text')
 
         # Load existing JSON data
         json_data = self.load_data()
 
-        # Update or move the note to a new notebook if necessary
-        target_notebook = new_notebook_value if old_notebook_value != new_notebook_value else old_notebook_value
-        json_data['Notebooks'].setdefault(target_notebook, {})[new_note_value] = {
-            "note_text": new_text_value
-        }
+        # Move or update the note to a new notebook if necessary
+        target_notebook = second_notebook_value if first_notebook_value != second_notebook_value else first_notebook_value
+        if target_notebook is not first_notebook_value:
+            json_data['Notebooks'].setdefault(target_notebook, {})[second_note_value] = {
+                "text": second_text_value
+            }
+        else:
+            json_data['Notebooks'][first_notebook_value][second_note_value] = {  # Notebook did not change, others did
+                "text": second_text_value
+            }
 
         # Remove the old note if the notebook or note name has changed
-        if old_notebook_value != new_notebook_value or old_note_value != new_note_value:
-            del json_data['Notebooks'][old_notebook_value][old_note_value]
+        if first_notebook_value != second_notebook_value or first_note_value != second_note_value:
+            del json_data['Notebooks'][first_notebook_value][first_note_value]
 
         # Save the updated JSON data
         self._dump(json_data)
@@ -112,7 +117,7 @@ class DataModel:
 
 
 class Events(QObject):
-    notebook_edit_signal = pyqtSignal(dict, str)
+    edit_signal = pyqtSignal(dict, str)
     data_signal = pyqtSignal()
 
     notebook_form_state = None
@@ -132,12 +137,11 @@ class Widgets:
 
         self.add_tree_items(widget)  # Execute functionality for adding both notebooks and notes
 
-        # Extending to context menu display
+        # Extend to context menu display
         widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         widget.customContextMenuRequested.connect(self.context_menu)
 
     def add_tree_items(self, widget):
-        # Readability reference declaration
         data_elements = DataModel.load_data()
 
         # Iterate through the data and assign elements to QTreeWidget elements
@@ -145,7 +149,7 @@ class Widgets:
             notebook_item = QTreeWidgetItem([notebook_name])
             widget.addTopLevelItem(notebook_item)
 
-            # Storing object data in order to keep the positions for comparable situations later
+            # Store object data to keep positions for comparable situations later
             self.item_data_map[id(notebook_item)] = notebook_name
 
             for note_element in data_elements["Notebooks"][notebook_name]:
@@ -159,8 +163,7 @@ class Widgets:
         self.add_tree_items(widget)  # Rebuild widget items
 
     def context_menu(self, position):
-        # Receive the item's clicked position
-        selected_item = Widgets.tree_widget.itemAt(position)
+        selected_item = Widgets.tree_widget.itemAt(position)  # Receive the item's clicked position
 
         if selected_item:
             menu = QMenu()  # Create context menu instance
@@ -188,14 +191,12 @@ class Widgets:
 
         # Emit signals for each action and process the information
         if action == "Edit":
-            self.events_model.notebook_edit_signal.emit(item_data, action)
+            self.events_model.edit_signal.emit(item_data, action)
         elif action == "Delete":
-            DataModel.delete_notebook(item_text)
-            self.events_model.data_signal.emit()
+            self.events_model.delete_signal.emit(item_data, action)
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    context_menu_func = None
 
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -252,11 +253,12 @@ class MainWindow(QtWidgets.QMainWindow):
         ui.noteActionSelectorLabel.setText("Parent notebook for this note")
         ui.noteActionDescriptionLabel.setText("Note text")
 
-        ui.noteAction_comboBox.addItems(self.data_model.load_data()["Notebooks"])
+        ui.noteAction_comboBox.addItem("")  # Show as empty at first
+        ui.noteAction_comboBox.addItems(self.data_model.load_data()["Notebooks"])  # But also fill with data
 
         def handle_notebook_selector():
-            ui.noteAction_comboBox.clear()
-            ui.noteAction_comboBox.addItems(self.data_model.load_data()["Notebooks"])
+            ui.noteAction_comboBox.clear()  # Clear content
+            ui.noteAction_comboBox.addItems(self.data_model.load_data()["Notebooks"])  # Update with fresh data
 
         self.events_model.data_signal.connect(handle_notebook_selector)
 
@@ -274,16 +276,31 @@ class MainWindow(QtWidgets.QMainWindow):
         self.events_model.notebook_form_state = "notebook creation mode"
         self.events_model.note_form_state = "note creation mode"
 
-        notebook_data = {}
+        form_data = {}
 
-        def handle_signal(data, action):
-            self.events_model.notebook_form_state = "notebook editing mode"  # Change mode
+        def prepare_forms(data, action):
 
-            notebook_name = data.get('pressed_item')  # Assign value
-            ui.notebookAction_lineEdit.setText(notebook_name)  # Set input field text
-            notebook_data['not_changed_notebook'] = notebook_name  # Add notebook_name to notebook_data for remembering
+            if data.get('notebook') == data.get('pressed_item'):
+                self.events_model.notebook_form_state = "notebook editing mode"  # Change mode
 
-        self.events_model.notebook_edit_signal.connect(handle_signal)
+                notebook_name = data.get('pressed_item')  # Assign value of the item where 'Edit' was pressed on
+                form_data['not_changed_notebook'] = notebook_name  # Add notebook_name to notebook_data for remembering
+
+                ui.notebookAction_lineEdit.setText(notebook_name)  # Set input field text
+            elif data.get('child_note') == data.get('pressed_item'):
+                self.events_model.note_form_state = "note editing mode"  # Change mode
+
+                notebook_name = data.get('notebook')
+                note_name = data.get('child_note')
+                note_text = self.data_model.load_data()['Notebooks'][notebook_name][note_name]['text']
+
+                ui.noteAction_lineEdit.setText(note_name)  # Set input field text
+                ui.noteAction_comboBox.setCurrentText(notebook_name)
+                ui.noteAction_textEdit.setText(note_text)
+
+                form_data['viewed_data'] = {'note_name': note_name, 'parent_notebook': notebook_name, 'note_text': note_text}
+
+        self.events_model.edit_signal.connect(prepare_forms)
 
         def state_verification(state):
             notebook_input_field = ui.notebookAction_lineEdit
@@ -301,18 +318,20 @@ class MainWindow(QtWidgets.QMainWindow):
             if 'notebook creation mode' in state and notebook_input_text:
                 self.data_model.create_notebook(notebook_input_text)  # Handle request to JSON file
             elif 'notebook editing mode' in state and notebook_input_text:
-                notebook_data['probably_changed_notebook'] = notebook_input_text  # Add the probably changed information from the field
-                self.data_model.update_notebook(notebook_data)  # Handle request to JSON file
+                form_data['probably_changed_notebook'] = notebook_input_text  # Add the probably changed information from the field
+                self.data_model.update_notebook(form_data)  # Handle request to JSON file
             elif 'note creation mode' in state and note_input_text:
                 self.data_model.create_note(note_input_text, notebook_selector_text, note_input_description)
             elif 'note editing mode' in state and note_input_text:
-                # TODO: Pass input field information to notebook_data, before continuing to self.data_model.update_note
-                pass
+                form_data['probably_changed_data'] = {'note_name': note_input_text, 'parent_notebook': notebook_selector_text, 'note_text': note_input_description}
+                self.data_model.update_note(form_data)
 
             # Clear input fields after task has been completed
             if notebook_input_text: notebook_input_field.clear()
             if note_input_text: note_input_field.clear()
             if note_input_description: note_text_field.clear()
+
+            if form_data: form_data.clear()
 
             self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
 
