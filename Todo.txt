@@ -1,0 +1,7 @@
+Things to do for project notable (desktop app):
+
+- Code optimisation; remove duplicated code and think about other solutions for those
+
+Notes:
+
+- If note input fields have been filled with values, they will be cleared if you choose to add a notebook and pressing the button. Solution; put the field.clear() methods in the if-statements

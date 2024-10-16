@@ -359,6 +359,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.events_model.delete_signal.connect(delete_item)
 
+        # The value of parent notebook selector comboBox could be unset when the signal has been triggered
+        def unset_notebook_selector():
+            ui.noteAction_comboBox.addItem('')
+            ui.noteAction_comboBox.setCurrentText('')
+
+        self.events_model.data_changed_signal.connect(unset_notebook_selector)
+
 
 if __name__ == "__main__":
     import sys
