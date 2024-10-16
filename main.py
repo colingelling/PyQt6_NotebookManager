@@ -21,6 +21,7 @@ class DataModel:
     def __init__(self):
         super().__init__()
         self._write_file_template()
+        self.json_data = DataModel.load_data()
 
     @staticmethod
     def prepare_context_data(item):
@@ -42,20 +43,17 @@ class DataModel:
         with open(DataModel.json_file, 'r') as file:
             return json.load(file)
 
-    @staticmethod
-    def create_notebook(notebook_name):
-        json_data = DataModel.load_data()
-        json_data["Notebooks"][notebook_name] = {}
+    def create_notebook(self, notebook_name):
+        self.json_data["Notebooks"][notebook_name] = {}
 
         # Save the updated JSON data
-        DataModel._dump(json_data)
+        self._dump(self.json_data)
 
     def create_note(self, note_name, notebook_name, note_text):
-        json_data = DataModel.load_data()
-        json_data["Notebooks"][notebook_name].update({note_name: {'text': note_text}})
+        self.json_data["Notebooks"][notebook_name].update({note_name: {'text': note_text}})
 
         # Save the updated JSON data
-        DataModel._dump(json_data)
+        self._dump(self.json_data)
 
     def update_notebook(self, data):
         not_changed_item = data.get('not_changed_notebook')
@@ -63,11 +61,11 @@ class DataModel:
 
         if not_changed_item != probably_changed_item:
 
-            json_data = self.load_data()  # Load existing JSON data
-            json_data['Notebooks'][probably_changed_item] = json_data['Notebooks'].pop(not_changed_item)  # Replace
+            self.json_data = self.load_data()  # Load existing JSON data
+            self.json_data['Notebooks'][probably_changed_item] = self.json_data['Notebooks'].pop(not_changed_item)  # Replace
 
             # Save the updated JSON data
-            self._dump(json_data)
+            self._dump(self.json_data)
 
         else:
             return None  # Do nothing if nothing has been changed
@@ -83,42 +81,34 @@ class DataModel:
         second_notebook_value = form_data['probably_changed_data'].get('parent_notebook')
         second_text_value = form_data['probably_changed_data'].get('note_text')
 
-        # Load existing JSON data
-        json_data = self.load_data()
-
         # Move or update the note to a new notebook if necessary
         target_notebook = second_notebook_value if first_notebook_value != second_notebook_value else first_notebook_value
         if target_notebook is not first_notebook_value:
-            json_data['Notebooks'].setdefault(target_notebook, {})[second_note_value] = {
+            self.json_data['Notebooks'].setdefault(target_notebook, {})[second_note_value] = {
                 "text": second_text_value
             }
         else:
-            json_data['Notebooks'][first_notebook_value][second_note_value] = {  # Notebook did not change, others did
+            self.json_data['Notebooks'][first_notebook_value][second_note_value] = {  # Notebook did not change, others did
                 "text": second_text_value
             }
 
         # Remove the old note if the notebook or note name has changed
         if first_notebook_value != second_notebook_value or first_note_value != second_note_value:
-            del json_data['Notebooks'][first_notebook_value][first_note_value]
+            del self.json_data['Notebooks'][first_notebook_value][first_note_value]
 
         # Save the updated JSON data
-        self._dump(json_data)
+        self._dump(self.json_data)
 
-    @staticmethod
-    def delete_notebook(notebook):
-        json_data = DataModel.load_data()
-        del json_data["Notebooks"][notebook]  # Remove the entire notebook
-        DataModel._dump(json_data)  # Handle changes to the JSON file
+    def delete_notebook(self, notebook):
+        del self.json_data["Notebooks"][notebook]  # Remove the entire notebook
+        self._dump(self.json_data)  # Handle changes to the JSON file
 
-    @staticmethod
-    def delete_note(notebook, note):
-        json_data = DataModel.load_data()
-        json_data["Notebooks"][notebook].pop(note)  # Remove the note inside the notebook
-        DataModel._dump(json_data)  # Handle changes to the JSON file
+    def delete_note(self, notebook, note):
+        self.json_data["Notebooks"][notebook].pop(note)  # Remove the note inside the notebook
+        self._dump(self.json_data)  # Handle changes to the JSON file
 
-    @staticmethod
-    def _dump(data):
-        with open(DataModel.json_file, 'w') as file:
+    def _dump(self, data):
+        with open(self.json_file, 'w') as file:
             return json.dump(data, file, indent=4)
 
 
