@@ -105,10 +105,16 @@ class DataModel:
         self._dump(json_data)
 
     @staticmethod
-    def delete_notebook(notebook_name):
+    def delete_notebook(notebook):
         json_data = DataModel.load_data()
-        del json_data["Notebooks"][notebook_name]
-        DataModel._dump(json_data)
+        del json_data["Notebooks"][notebook]  # Remove the entire notebook
+        DataModel._dump(json_data)  # Handle changes to the JSON file
+
+    @staticmethod
+    def delete_note(notebook, note):
+        json_data = DataModel.load_data()
+        json_data["Notebooks"][notebook].pop(note)  # Remove the note inside the notebook
+        DataModel._dump(json_data)  # Handle changes to the JSON file
 
     @staticmethod
     def _dump(data):
@@ -118,7 +124,9 @@ class DataModel:
 
 class Events(QObject):
     edit_signal = pyqtSignal(dict, str)
-    data_signal = pyqtSignal()
+    delete_signal = pyqtSignal(dict, str)
+
+    data_changed_signal = pyqtSignal()
 
     notebook_form_state = None
     note_form_state = None
@@ -160,7 +168,7 @@ class Widgets:
 
     def refresh_tree_widget(self, widget):
         widget.clear()  # Remove all items from the widget
-        self.add_tree_items(widget)  # Rebuild widget items
+        self.add_tree_items(widget)  # Rebuild widget items freshly
 
     def context_menu(self, position):
         selected_item = Widgets.tree_widget.itemAt(position)  # Receive the item's clicked position
@@ -246,7 +254,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.widgets_model.setup_tree_widget(parent_tree_widget)
 
         # Set a connection from the view passed signal and connect it with functionality in order to rebuild QTreeWidget items
-        self.events_model.data_signal.connect(lambda: self.widgets_model.refresh_tree_widget(parent_tree_widget))
+        self.events_model.data_changed_signal.connect(lambda: self.widgets_model.refresh_tree_widget(parent_tree_widget))
 
         ui.notebookActionLabel.setText("The name of your notebook")
         ui.noteActionLabel.setText("The name of your note")
@@ -260,7 +268,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ui.noteAction_comboBox.clear()  # Clear content
             ui.noteAction_comboBox.addItems(self.data_model.load_data()["Notebooks"])  # Update with fresh data
 
-        self.events_model.data_signal.connect(handle_notebook_selector)
+        self.events_model.data_changed_signal.connect(handle_notebook_selector)
 
         notebook_save_button = ui.notebookActionButton
         note_save_button =  ui.noteActionButton
@@ -333,13 +341,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if form_data: form_data.clear()
 
-            self.events_model.data_signal.emit()  # Emit signal to update TreeWidget
+            self.events_model.data_changed_signal.emit()  # Emit signal to update both the TreeWidget and notebook selector
 
             self.events_model.notebook_form_state = "notebook creation mode"  # Go back to default
             self.events_model.note_form_state = "note creation mode"  # Go back to default
 
         ui.notebookActionButton.clicked.connect(lambda: state_verification(self.events_model.notebook_form_state))
         ui.noteActionButton.clicked.connect(lambda: state_verification(self.events_model.note_form_state))
+
+        def delete_item(item_data, action):
+            if item_data['pressed_item'] == item_data['notebook']:  # When item is a notebook
+                self.data_model.delete_notebook(item_data['notebook'])
+            elif item_data['pressed_item'] == item_data['child_note']:  # When item is a note
+                self.data_model.delete_note(item_data['notebook'], item_data['child_note'])
+
+            self.events_model.data_changed_signal.emit()
+
+        self.events_model.delete_signal.connect(delete_item)
 
 
 if __name__ == "__main__":
@@ -350,4 +368,3 @@ if __name__ == "__main__":
     window.show()
 
     app.exec()
-
