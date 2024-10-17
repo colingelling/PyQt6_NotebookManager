@@ -3,6 +3,15 @@
     Created by Colin Gelling on 27/09/2024 (CEST)
     Using Pycharm Professional
 
+    Requirements were:
+    - 400 lines of code
+    - 4 classes
+
+    Afterward:
+    - 258 lines of code without white lines (Also without this description block)
+    - 375 lines of code with white lines, making it more readable (Included this description block, 359 without)
+    - 4 classes
+
 """
 
 import json
