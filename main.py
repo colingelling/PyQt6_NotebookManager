@@ -302,34 +302,33 @@ class MainWindow(QtWidgets.QMainWindow):
 
         def state_verification(state):
             notebook_input_field = ui.notebookAction_lineEdit
-
             note_input_field = ui.noteAction_lineEdit
             notebook_selector_field = ui.noteAction_comboBox
             note_text_field = ui.noteAction_textEdit
 
             notebook_input_text = notebook_input_field.text()
-
             note_input_text = note_input_field.text()
             notebook_selector_text = notebook_selector_field.currentText()
             note_input_description = note_text_field.toPlainText()
 
             if 'notebook creation mode' in state and notebook_input_text:
                 self.data_model.create_notebook(notebook_input_text)  # Handle request to JSON file
+                notebook_input_field.clear()  # Clear input field
             elif 'notebook editing mode' in state and notebook_input_text:
                 form_data['probably_changed_notebook'] = notebook_input_text  # Add the probably changed information from the field
                 self.data_model.update_notebook(form_data)  # Handle request to JSON file
+                notebook_input_field.clear()  # Clear input field
             elif 'note creation mode' in state and note_input_text:
                 self.data_model.create_note(note_input_text, notebook_selector_text, note_input_description)
+                note_input_field.clear()  # Clear input field
+                note_text_field.clear()
             elif 'note editing mode' in state and note_input_text:
                 form_data['probably_changed_data'] = {'note_name': note_input_text, 'parent_notebook': notebook_selector_text, 'note_text': note_input_description}
                 self.data_model.update_note(form_data)
+                note_input_field.clear()  # Clear input field
+                note_text_field.clear()
 
-            # Clear input fields after task has been completed
-            if notebook_input_text: notebook_input_field.clear()
-            if note_input_text: note_input_field.clear()
-            if note_input_description: note_text_field.clear()
-
-            if form_data: form_data.clear()
+            if form_data: form_data.clear()  # Clear data set after task completion
 
             self.events_model.data_changed_signal.emit()  # Emit signal to update both the TreeWidget and notebook selector
 
