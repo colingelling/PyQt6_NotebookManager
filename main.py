@@ -8,10 +8,12 @@
 import json
 import os
 
-from PyQt6 import uic, QtWidgets, QtGui
+from typing import TYPE_CHECKING
+
+from PyQt6 import uic, QtGui
 from PyQt6.QtCore import QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QFontDatabase
-from PyQt6.QtWidgets import QApplication, QTreeWidgetItem, QMenu
+from PyQt6.QtWidgets import QApplication, QTreeWidgetItem, QMenu, QMainWindow
 
 
 class DataModel:
@@ -25,23 +27,18 @@ class DataModel:
 
     @staticmethod
     def prepare_context_data(item):
-        parent_item = item.parent()
+        parent_item = item.parent()  # Locate notebook
 
         if parent_item: return {'notebook': parent_item.text(0), 'child_note': item.text(0)}
         else: return {'notebook': item.text(0)}
 
     def _write_file_template(self):
-        # Declare an empty dictionary containing preset keys representing lists
         preset = {"Notebooks": {}}
-
-        if not os.path.exists(DataModel.json_file):
-            # Save the updated JSON data
-            self._dump(preset)
+        if not os.path.exists(DataModel.json_file): self._dump(preset)  # Save updated JSON data including preset (base)
 
     @staticmethod
     def load_data():
-        with open(DataModel.json_file, 'r') as file:
-            return json.load(file)
+        with open(DataModel.json_file, 'r') as file: return json.load(file)
 
     def create_notebook(self, notebook_name):
         self.json_data["Notebooks"][notebook_name] = {}
@@ -50,6 +47,7 @@ class DataModel:
         self._dump(self.json_data)
 
     def create_note(self, note_name, notebook_name, note_text):
+        # Alter data set and add a note to an existing notebook
         self.json_data["Notebooks"][notebook_name].update({note_name: {'text': note_text}})
 
         # Save the updated JSON data
@@ -62,7 +60,7 @@ class DataModel:
         if not_changed_item != probably_changed_item:
 
             self.json_data = self.load_data()  # Load existing JSON data
-            self.json_data['Notebooks'][probably_changed_item] = self.json_data['Notebooks'].pop(not_changed_item)  # Replace
+            self.json_data['Notebooks'][probably_changed_item] = self.json_data['Notebooks'].pop(not_changed_item)  # 'Replace' notebook
 
             # Save the updated JSON data
             self._dump(self.json_data)
@@ -74,7 +72,6 @@ class DataModel:
         # Assign note values from before the button click
         first_note_value = form_data['viewed_data'].get('note_name')
         first_notebook_value = form_data['viewed_data'].get('parent_notebook')
-        first_text_value = form_data['viewed_data'].get('note_text')
 
         # Assign note values from after the button click
         second_note_value = form_data['probably_changed_data'].get('note_name')
@@ -92,7 +89,7 @@ class DataModel:
                 "text": second_text_value
             }
 
-        # Remove the old note if the notebook or note name has changed
+        # Remove the old note if the notebook or note name has been changed
         if first_notebook_value != second_notebook_value or first_note_value != second_note_value:
             del self.json_data['Notebooks'][first_notebook_value][first_note_value]
 
@@ -108,13 +105,17 @@ class DataModel:
         self._dump(self.json_data)  # Handle changes to the JSON file
 
     def _dump(self, data):
+        if TYPE_CHECKING:
+            from _typeshed import SupportsWrite
+
         with open(self.json_file, 'w') as file:
-            return json.dump(data, file, indent=4)
+            file_to_write: 'SupportsWrite[str]' = file  # Type casting for type checker
+            json.dump(data, file_to_write, indent=4)
 
 
 class Events(QObject):
-    edit_signal = pyqtSignal(dict, str)
-    delete_signal = pyqtSignal(dict, str)
+    edit_signal = pyqtSignal(dict)
+    delete_signal = pyqtSignal(dict)
 
     data_changed_signal = pyqtSignal()
 
@@ -173,7 +174,7 @@ class Widgets:
             edit_action = menu.addAction(edit_action_text)
             delete_action = menu.addAction(delete_action_text)
 
-            # Connecting the options to functions
+            # Connecting context menu options to functionality
             edit_action.triggered.connect(lambda: self.activate_trigger(selected_item, edit_action_text))
             delete_action.triggered.connect(lambda: self.activate_trigger(selected_item, delete_action_text))
 
@@ -183,18 +184,18 @@ class Widgets:
     def activate_trigger(self, item, action):
         item_data = DataModel.prepare_context_data(item)
 
-        # emit signal that the item has been clicked
+        # Get item text and assign it to item_data
         item_text = item.text(0)
         item_data["pressed_item"] = item_text
 
         # Emit signals for each action and process the information
         if action == "Edit":
-            self.events_model.edit_signal.emit(item_data, action)
+            self.events_model.edit_signal.emit(item_data)
         elif action == "Delete":
-            self.events_model.delete_signal.emit(item_data, action)
+            self.events_model.delete_signal.emit(item_data)
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainWindow(QMainWindow):
 
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -208,13 +209,12 @@ class MainWindow(QtWidgets.QMainWindow):
         qt_creator_file = "src/ui/Overview.ui"
         self.ui = uic.loadUi(qt_creator_file, self)
 
-        # Set window position
+        # Set window position to absolute center
         frame_geometry = self.frameGeometry()
         screen = QtGui.QGuiApplication.primaryScreen().availableGeometry().center()
         frame_geometry.moveCenter(screen)
         self.move(frame_geometry.topLeft())
 
-        # Set window title
         self.setWindowTitle("Overview")
 
         # Load Ui stylesheet
@@ -227,7 +227,7 @@ class MainWindow(QtWidgets.QMainWindow):
         font_file = "src/fonts/FontAwesome6-Free-Regular-400.otf"
         QFontDatabase.addApplicationFont(font_file)
 
-        self.content()
+        self.content()  # Load window content and other relatable functionality
 
     def content(self):
         ui = self.ui
@@ -276,7 +276,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         form_data = {}
 
-        def prepare_forms(data, action):
+        def prepare_forms(data):
 
             if data.get('notebook') == data.get('pressed_item'):
                 self.events_model.notebook_form_state = "notebook editing mode"  # Change mode
@@ -330,7 +330,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
             if form_data: form_data.clear()  # Clear data set after task completion
 
-            self.events_model.data_changed_signal.emit()  # Emit signal to update both the TreeWidget and notebook selector
+            self.events_model.data_changed_signal.emit()  # Emit signal to update both the TreeWidget and comboBox
 
             self.events_model.notebook_form_state = "notebook creation mode"  # Go back to default
             self.events_model.note_form_state = "note creation mode"  # Go back to default
@@ -338,22 +338,21 @@ class MainWindow(QtWidgets.QMainWindow):
         ui.notebookActionButton.clicked.connect(lambda: state_verification(self.events_model.notebook_form_state))
         ui.noteActionButton.clicked.connect(lambda: state_verification(self.events_model.note_form_state))
 
-        def delete_item(item_data, action):
+        def delete_item(item_data):
             if item_data['pressed_item'] == item_data['notebook']:  # When item is a notebook
-                self.data_model.delete_notebook(item_data['notebook'])
+                self.data_model.delete_notebook(item_data['notebook'])  # Pass value and delete the notebook in the JSON file
             elif item_data['pressed_item'] == item_data['child_note']:  # When item is a note
-                self.data_model.delete_note(item_data['notebook'], item_data['child_note'])
+                self.data_model.delete_note(item_data['notebook'], item_data['child_note'])  # Pass value and delete the note in the JSON file
 
-            self.events_model.data_changed_signal.emit()
+            self.events_model.data_changed_signal.emit()  # Trigger signal to update both the TreeWidget and comboBox
 
-        self.events_model.delete_signal.connect(delete_item)
+        self.events_model.delete_signal.connect(delete_item)  # Bind functionality to signal
 
-        # The value of parent notebook selector comboBox could be unset when the signal has been triggered
-        def unset_notebook_selector():
-            ui.noteAction_comboBox.addItem('')
-            ui.noteAction_comboBox.setCurrentText('')
+        def unset_notebook_selector():  # Resetting the comboBox
+            ui.noteAction_comboBox.addItem('')  # Add an empty item since it could have been removed in the process
+            ui.noteAction_comboBox.setCurrentText('')  # Set current item to be blank after task completion
 
-        self.events_model.data_changed_signal.connect(unset_notebook_selector)
+        self.events_model.data_changed_signal.connect(unset_notebook_selector)  # Execute functionality after creation, edit or removal
 
 
 if __name__ == "__main__":
