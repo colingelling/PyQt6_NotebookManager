@@ -66,16 +66,11 @@ class DataModel:
         not_changed_item = data.get('not_changed_notebook')
         probably_changed_item = data.get('probably_changed_notebook')
 
-        if not_changed_item != probably_changed_item:
+        self.json_data = self.load_data()  # Load existing JSON data
+        self.json_data['Notebooks'][probably_changed_item] = self.json_data['Notebooks'].pop(not_changed_item)  # 'Replace' notebook
 
-            self.json_data = self.load_data()  # Load existing JSON data
-            self.json_data['Notebooks'][probably_changed_item] = self.json_data['Notebooks'].pop(not_changed_item)  # 'Replace' notebook
-
-            # Save the updated JSON data
-            self._dump(self.json_data)
-
-        else:
-            return None  # Do nothing if nothing has been changed
+        # Save the updated JSON data
+        self._dump(self.json_data)
 
     def update_note(self, form_data):
         # Assign note values from before the button click
