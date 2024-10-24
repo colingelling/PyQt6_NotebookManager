@@ -282,14 +282,14 @@ class MainWindow(QMainWindow):
 
         def prepare_forms(data):
 
-            if data.get('notebook') == data.get('pressed_item'):
+            if 'child_note' not in data.keys() and data.get('notebook') == data.get('pressed_item'):
                 self.events_model.notebook_form_state = "notebook editing mode"  # Change mode
 
                 notebook_name = data.get('pressed_item')  # Assign value of the item where 'Edit' was pressed on
                 form_data['not_changed_notebook'] = notebook_name  # Add notebook_name to notebook_data for remembering
 
                 ui.notebookAction_lineEdit.setText(notebook_name)  # Set input field text
-            elif data.get('child_note') == data.get('pressed_item'):
+            elif 'child_note' in data.keys() and data.get('child_note') == data.get('pressed_item'):
                 self.events_model.note_form_state = "note editing mode"  # Change mode
 
                 notebook_name = data.get('notebook')
